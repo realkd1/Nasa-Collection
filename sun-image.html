@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Immagini Solari - Ricerca & Modal Full Screen Definitivo</title>
+  <!-- Bootstrap CSS (v4.6) senza integrity per evitare errori -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/css/bootstrap.min.css">
+  <!-- Stili personalizzati -->
+  <style>
+    body {
+      background-color: #f8f9fa;
+      font-family: Arial, sans-serif;
+    }
+    h1 {
+      color: #343a40;
+    }
+    /* Menu centrale */
+    .nav-menu {
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    .nav-menu button {
+      margin: 3px;
+    }
+    /* Card per le immagini */
+    .card-img-top {
+      width: 100%;
+      height: 200px;
+      object-fit: cover;
+      cursor: pointer;
+    }
+    /* Modal full screen: il modal copre l'intero schermo */
+    .modal-fullscreen .modal-dialog {
+      margin: 0;
+      max-width: 100%;
+      width: 100%;
+      height: 100%;
+      padding: 0;
+    }
+    .modal-fullscreen .modal-content {
+      height: 100vh;
+      border: none;
+      border-radius: 0;
+    }
+    .modal-fullscreen .modal-body {
+      overflow-y: auto;
+      padding: 2rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container mt-4">
+    <h1 class="text-center mb-4">Immagini Solari</h1>
+    
+    <!-- Menu interattivo per scegliere il tipo di immagini -->
+    <div class="nav-menu">
+      <button class="btn btn-outline-primary" data-query="solar flare">Flare</button>
+      <button class="btn btn-outline-primary" data-query="sunspot">Sunspot</button>
+      <button class="btn btn-outline-primary" data-query="solar corona">Corona</button>
+      <button class="btn btn-outline-primary" data-query="active region">Active Regions</button>
+      <button class="btn btn-outline-primary" data-query="sun">Generale</button>
+    </div>
+    
+    <!-- Filtro per data (facoltativo) -->
+    <div class="row mb-3">
+      <div class="col-md-4 offset-md-4">
+        <input type="date" id="filterDate" class="form-control" placeholder="Seleziona data (facoltativo)">
+      </div>
+    </div>
+    
+    <!-- Sezione risultati: le card verranno inserite qui -->
+    <div id="imageResults" class="row"></div>
+  </div>
+  
+  <!-- Modal Full Screen: mostra immagine ingrandita e articolo completo -->
+  <div class="modal fade modal-fullscreen" id="fullScreenModal" tabindex="-1" role="dialog" aria-labelledby="fullScreenModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+      <div class="modal-content">
+         <div class="modal-header">
+           <h5 class="modal-title" id="fullScreenModalLabel">Titolo</h5>
+           <button type="button" class="close" data-dismiss="modal" aria-label="Chiudi">
+             <span aria-hidden="true" style="font-size: 2rem;">&times;</span>
+           </button>
+         </div>
+         <div class="modal-body">
+           <img id="fullImage" src="" alt="Immagine Ingrandita" class="img-fluid mb-3">
+           <div id="fullArticle"></div>
+         </div>
+      </div>
+    </div>
+  </div>
+  
+  <footer class="text-center mt-4 p-3 bg-dark text-light">
+    <p class="mb-0">Immagini Solari © 2025 - Bocaletto Luca</p>
+  </footer>
+  
+  <!-- Inclusione di jQuery (versione completa) -->
+  <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+  <!-- Inclusione di Bootstrap Bundle senza integrità (include Popper) -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/js/bootstrap.bundle.min.js"></script>
+  
+  <!-- Script personalizzato -->
+  <script>
+    // Se necessario, imposta la tua API key per le immagini, altrimenti "DEMO_KEY" va bene per test
+    const NASA_API_KEY = 'DEMO_KEY';
+    
+    // Funzione per codificare stringhe per HTML per evitare conflitti con virgolette
+    function encodeHTML(str) {
+      if (!str) return "";
+      return str.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+    
+    // Funzione per eseguire la ricerca tramite l'API NASA Images
+    function loadSolarImages(query, dateFilter) {
+      const resultsDiv = $('#imageResults');
+      resultsDiv.html(`
+        <div class="col-12 text-center my-3">
+          <div class="spinner-border" role="status">
+            <span class="sr-only">Caricamento...</span>
+          </div>
+        </div>
+      `);
+      
+      // Costruisci l'URL per la ricerca; l'API NASA Images è pubblica
+      let url = "https://images-api.nasa.gov/search?q=" + encodeURIComponent(query) + "&media_type=image";
+      if(dateFilter) {
+        let selectedDate = new Date(dateFilter);
+        let year = selectedDate.getFullYear();
+        url += "&year_start=" + year + "&year_end=" + year;
+      }
+      
+      fetch(url)
+      .then(response => response.json())
+      .then(data => {
+         resultsDiv.empty();
+         if(data.collection && data.collection.items && data.collection.items.length > 0) {
+            // Ordina per data_created decrescente (le più recenti in cima)
+            let items = data.collection.items;
+            items.sort((a, b) => new Date(b.data[0].date_created || 0) - new Date(a.data[0].date_created || 0));
+            items.forEach(item => {
+              const title = item.data[0].title || "N/D";
+              const fullDescription = item.data[0].description || "";
+              const truncatedDescription = fullDescription.length > 100 ? fullDescription.substring(0,100) + "..." : fullDescription;
+              const imageUrl = (item.links && item.links[0]) ? item.links[0].href : "";
+              const dateCreated = item.data[0].date_created ? new Date(item.data[0].date_created).toLocaleDateString() : "";
+              
+              const cardHtml = `
+                <div class="col-md-4 col-sm-6 mb-4">
+                  <div class="card h-100">
+                    <img src="${imageUrl}" class="card-img-top" alt="${title}">
+                    <div class="card-body">
+                      <h5 class="card-title">${title}</h5>
+                      <p class="card-text">${truncatedDescription}</p>
+                      <p class="card-text"><small class="text-muted">Data: ${dateCreated}</small></p>
+                    </div>
+                    <div class="card-footer text-center">
+                      <button class="btn btn-primary btn-read-more"
+                        data-fullimage="${imageUrl}"
+                        data-title="${encodeHTML(title)}"
+                        data-description="${encodeHTML(fullDescription)}"
+                        data-date="${dateCreated}">
+                        Leggi di più
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              `;
+              resultsDiv.append(cardHtml);
+            });
+         } else {
+           resultsDiv.html('<div class="col-12 text-center"><p>Nessun risultato trovato.</p></div>');
+         }
+      })
+      .catch(err => {
+         console.error("Errore nella ricerca immagini:", err);
+         resultsDiv.html('<div class="col-12 text-center"><p>Errore nella ricerca immagini.</p></div>');
+      });
+    }
+    
+    $(document).ready(function(){
+      // Carica le immagini di default con termine "sun"
+      loadSolarImages("sun", null);
+      
+      // Listener per i pulsanti del menu
+      $('.nav-menu button').on('click', function(){
+         const query = $(this).data("query");
+         const dateVal = $('#filterDate').val();
+         loadSolarImages(query, dateVal);
+      });
+      
+      // Listener per il filtro data: se cambia, esegue la ricerca con il termine attivo (se non definito, usa "sun")
+      $('#filterDate').change(function(){
+         const activeQuery = $('.nav-menu button.btn-primary').data("query") || "sun";
+         const dateVal = $(this).val();
+         loadSolarImages(activeQuery, dateVal);
+      });
+      
+      // Listener delegato per il pulsante "Leggi di più"
+      $(document).on("click", ".btn-read-more", function(){
+         console.log("Leggi di più cliccato");
+         const fullImage = $(this).data("fullimage");
+         const title = $(this).data("title");
+         const description = $(this).data("description");
+         const dateCreated = $(this).data("date");
+         $("#fullScreenModalLabel").text(title);
+         $("#fullImage").attr("src", fullImage);
+         $("#fullArticle").html("<p>" + description + "</p><p><small class='text-muted'>Data: " + dateCreated + "</small></p>");
+         $("#fullScreenModal").modal("show");
+      });
+    });
+  </script>
+</body>
+</html>

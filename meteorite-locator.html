@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <title>NASA NEO Tracker – Liste Ordinate</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Bootstrap 5 CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    /* Base: html, body e wrapper per footer sempre in fondo */
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
+    .wrapper {
+      min-height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+    .content {
+      flex: 1;
+    }
+    /* Temi Day / Night */
+    body.day {
+      background-color: #f8f9fa;
+      color: #212529;
+    }
+    body.night {
+      background-color: #212529;
+      color: #f8f9fa;
+    }
+    /* Header & Footer */
+    header, footer {
+      background-color: #333;
+      color: #fff;
+      padding: 15px;
+      text-align: center;
+    }
+    /* Container principale */
+    .container-main {
+      max-width: 960px;
+      margin: 20px auto;
+      padding: 15px;
+    }
+    /* Pulsanti di ordinamento */
+    .sorting-buttons {
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    .sorting-buttons button {
+      margin: 0 5px;
+    }
+    /* Card degli NEO (stile Day) */
+    .neo-card {
+      margin-bottom: 20px;
+      padding: 15px;
+      background-color: #fff;
+      border: 1px solid #dee2e6;
+      border-radius: 0.25rem;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .neo-card h3 {
+      margin-bottom: 10px;
+    }
+    .neo-card p {
+      font-size: 0.95rem;
+    }
+    /* Stile Night per le Card e la Modale */
+    body.night .neo-card {
+      background-color: #343a40;
+      border-color: #495057;
+      color: #f8f9fa;
+    }
+    body.night .modal-content {
+      background-color: #343a40;
+      color: #f8f9fa;
+    }
+    /* Spinner */
+    .spinner {
+      margin: 50px auto;
+      display: block;
+    }
+    /* Paginazione */
+    #paginationContainer {
+      margin-top: 20px;
+    }
+    /* Grafico: posizionato subito dopo i pulsanti */
+    #chartContainer {
+      margin-bottom: 20px;
+      position: relative;
+      height: 300px;
+    }
+    /* Footer */
+    footer {
+      margin-top: auto;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body class="day">
+  <div class="wrapper">
+    <!-- HEADER -->
+    <header>
+      <div class="container d-flex justify-content-between align-items-center">
+        <h1 class="m-0">NASA NEO Tracker – Liste Ordinate</h1>
+        <div>
+          <label for="themeToggle" class="form-check-label me-2">Tema</label>
+          <input type="checkbox" id="themeToggle" class="form-check-input">
+          <span id="themeText">Day</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- CONTENUTO -->
+    <div class="content container-main">
+      <!-- Pulsanti di Ordinamento -->
+      <div class="sorting-buttons mb-4">
+        <button id="btnHazard" class="btn btn-warning">Pericolosità</button>
+        <button id="btnDistance" class="btn btn-info">Distanza Minima</button>
+        <button id="btnDiscovery" class="btn btn-success">Data Scoperta</button>
+      </div>
+
+      <!-- Grafico a Barre -->
+      <div id="chartContainer" class="mb-4">
+        <canvas id="neoChart"></canvas>
+      </div>
+
+      <!-- Alert per oggetti a rischio -->
+      <div id="alertContainer"></div>
+
+      <!-- Lista dei NEO (impaginata) -->
+      <div id="neoContainer"></div>
+
+      <!-- Paginazione -->
+      <nav>
+        <ul id="paginationContainer" class="pagination justify-content-center"></ul>
+      </nav>
+    </div>
+
+    <!-- FOOTER -->
+    <footer>
+      <p>Realizzato da Bocaletto Luca © <span id="currentYear"></span></p>
+    </footer>
+  </div>
+
+  <!-- MODALE per i dettagli dell'oggetto NEO -->
+  <div class="modal fade" id="detailModal" tabindex="-1" aria-labelledby="detailModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="detailModalLabel">Dettaglio NEO</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button>
+        </div>
+        <div class="modal-body" id="modalBodyContent">
+          <!-- I dettagli verranno caricati qui -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap Bundle JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // Imposta l'anno corrente
+    document.getElementById("currentYear").textContent = new Date().getFullYear();
+
+    /* === Gestione del Toggle Tema (Day/Night) === */
+    const themeToggle = document.getElementById("themeToggle");
+    const themeText = document.getElementById("themeText");
+    themeToggle.addEventListener("change", function() {
+      if (this.checked) {
+        document.body.classList.remove("day");
+        document.body.classList.add("night");
+        themeText.textContent = "Night";
+      } else {
+        document.body.classList.remove("night");
+        document.body.classList.add("day");
+        themeText.textContent = "Day";
+      }
+    });
+
+    /* === Variabili Globali === */
+    window.currentNEOData = [];  // Lista globale ottenuta dalla API
+    let currentSortedData = [];  // Lista ordinata corrente
+    let currentPage = 1;
+    const pageSize = 20;
+    let neoChart; // Riferimento al grafico Chart.js
+
+    /* === Carica i dati globali dall'endpoint /neo/browse === */
+    async function loadAllNEOs() {
+      const apiUrl = "https://api.nasa.gov/neo/rest/v1/neo/browse?api_key=DEMO_KEY&size=100";
+      try {
+        const response = await fetch(apiUrl);
+        if (!response.ok) {
+          if(response.status === 429) {
+            throw new Error("Troppe richieste. Prova più tardi o usa una tua API key.");
+          } else {
+            throw new Error("Errore nella risposta API");
+          }
+        }
+        const data = await response.json();
+        window.currentNEOData = data.near_earth_objects;
+        // Ordinamento iniziale: Pericolosità
+        sortByHazard();
+      } catch (error) {
+        console.error(error);
+        document.getElementById("neoContainer").innerHTML = `<div class="alert alert-danger" role="alert">
+          ${error.message}</div>`;
+      }
+    }
+    loadAllNEOs();
+
+    /* === Funzioni di Ordinamento === */
+    function sortByHazard() {
+      const sorted = window.currentNEOData.slice()
+        .sort((a, b) => {
+          const hazardA = a.is_potentially_hazardous_asteroid ? 1 : 0;
+          const hazardB = b.is_potentially_hazardous_asteroid ? 1 : 0;
+          if (hazardB !== hazardA) return hazardB - hazardA;
+          const mdA = (a.close_approach_data && a.close_approach_data.length > 0)
+            ? parseFloat(a.close_approach_data[0].miss_distance.kilometers)
+            : Infinity;
+          const mdB = (b.close_approach_data && b.close_approach_data.length > 0)
+            ? parseFloat(b.close_approach_data[0].miss_distance.kilometers)
+            : Infinity;
+          return mdA - mdB;
+        });
+      updateSortedData(sorted);
+    }
+
+    function sortByDistance() {
+      const sorted = window.currentNEOData.slice()
+        .sort((a, b) => {
+          const mdA = (a.close_approach_data && a.close_approach_data.length > 0)
+            ? parseFloat(a.close_approach_data[0].miss_distance.kilometers)
+            : Infinity;
+          const mdB = (b.close_approach_data && b.close_approach_data.length > 0)
+            ? parseFloat(b.close_approach_data[0].miss_distance.kilometers)
+            : Infinity;
+          return mdA - mdB;
+        });
+      updateSortedData(sorted);
+    }
+
+    function sortByDiscovery() {
+      const sorted = window.currentNEOData.slice()
+        .sort((a, b) => {
+          let dateA = 0, dateB = 0;
+          if(a.close_approach_data && a.close_approach_data.length > 0) {
+            dateA = a.close_approach_data[0].epoch_date_close_approach
+                    ? a.close_approach_data[0].epoch_date_close_approach
+                    : new Date(a.close_approach_data[0].close_approach_date).getTime();
+          }
+          if(b.close_approach_data && b.close_approach_data.length > 0) {
+            dateB = b.close_approach_data[0].epoch_date_close_approach
+                    ? b.close_approach_data[0].epoch_date_close_approach
+                    : new Date(b.close_approach_data[0].close_approach_date).getTime();
+          }
+          return dateB - dateA;
+        });
+      updateSortedData(sorted);
+    }
+
+    /* === Paginazione e Visualizzazione === */
+    function updateSortedData(sorted) {
+      currentSortedData = sorted;
+      currentPage = 1;
+      displayPage();
+      generateChart(sorted);
+      checkRisk(sorted);
+    }
+
+    function displayPage() {
+      const startIdx = (currentPage - 1) * pageSize;
+      const pageData = currentSortedData.slice(startIdx, startIdx + pageSize);
+      displayNEO(pageData);
+      generatePagination(currentSortedData.length);
+    }
+
+    function generatePagination(totalItems) {
+      const totalPages = Math.ceil(totalItems / pageSize);
+      let paginationHTML = "";
+      if (totalPages <= 1) {
+        document.getElementById("paginationContainer").innerHTML = "";
+        return;
+      }
+      paginationHTML += `<li class="page-item ${currentPage === 1 ? "disabled" : ""}">
+                           <a class="page-link" href="#" onclick="changePage(${currentPage - 1})">Previous</a>
+                         </li>`;
+      for (let i = 1; i <= totalPages; i++) {
+        paginationHTML += `<li class="page-item ${currentPage === i ? "active" : ""}">
+                             <a class="page-link" href="#" onclick="changePage(${i})">${i}</a>
+                           </li>`;
+      }
+      paginationHTML += `<li class="page-item ${currentPage === totalPages ? "disabled" : ""}">
+                           <a class="page-link" href="#" onclick="changePage(${currentPage + 1})">Next</a>
+                         </li>`;
+      document.getElementById("paginationContainer").innerHTML = paginationHTML;
+    }
+
+    function changePage(page) {
+      currentPage = page;
+      displayPage();
+    }
+
+    /* === Visualizzazione delle Card === */
+    function displayNEO(neoArray) {
+      const container = document.getElementById("neoContainer");
+      container.innerHTML = "";
+      if (!neoArray || neoArray.length === 0) {
+        container.innerHTML = "<p class='text-center'>Nessun oggetto trovato.</p>";
+        return;
+      }
+      neoArray.forEach((neo) => {
+        const name = neo.name || "Sconosciuto";
+        const hazardous = neo.is_potentially_hazardous_asteroid ? "Sì" : "No";
+        const absMag = neo.absolute_magnitude_h ? neo.absolute_magnitude_h : "N/D";
+        const diam = neo.estimated_diameter.kilometers;
+        const diamMin = diam.estimated_diameter_min.toFixed(3);
+        const diamMax = diam.estimated_diameter_max.toFixed(3);
+        const approach = (neo.close_approach_data && neo.close_approach_data.length > 0)
+                          ? neo.close_approach_data[0] : {};
+        const closeDate = approach.close_approach_date || "N/D";
+        const relVelocity = approach.relative_velocity ? parseFloat(approach.relative_velocity.kilometers_per_second).toFixed(2) : "N/D";
+        const missDistance = approach.miss_distance ? parseFloat(approach.miss_distance.kilometers).toFixed(0) : "N/D";
+
+        let cardHTML = `<div class="neo-card">
+                          <h3>${escapeHtml(name)}</h3>
+                          <p><strong>Magnitudine assoluta:</strong> ${absMag}</p>
+                          <p><strong>Potenzialmente pericoloso:</strong> ${hazardous}</p>
+                          <p><strong>Diametro stimato (km):</strong> ${diamMin} - ${diamMax}</p>
+                          <p><strong>Data di passaggio:</strong> ${closeDate}</p>
+                          <p><strong>Velocità (km/s):</strong> ${relVelocity}</p>
+                          <p><strong>Distanza (km):</strong> ${missDistance}</p>`;
+        cardHTML += `<button class="btn btn-sm btn-secondary" onclick="loadNEODetails('${neo.neo_reference_id}', '${escapeHtml(name)}')">
+                       Leggi di più</button>
+                     </div>`;
+        container.innerHTML += cardHTML;
+      });
+    }
+
+    /* === Lookup: Carica ulteriori dettagli tramite l'endpoint lookup === */
+    async function loadNEODetails(neoID, name) {
+      openDetailModal(name, `<p class="text-center">Caricamento dettagli...</p>`);
+      const detailUrl = `https://api.nasa.gov/neo/rest/v1/neo/${neoID}?api_key=DEMO_KEY`;
+      try {
+        const response = await fetch(detailUrl);
+        if (!response.ok) throw new Error("Errore nel recupero dei dettagli");
+        const data = await response.json();
+        let html = `<h2>${escapeHtml(data.name)}</h2>`;
+        html += `<p><strong>Magnitudine assoluta H:</strong> ${data.absolute_magnitude_h}</p>`;
+        html += `<p><strong>Potenzialmente pericoloso:</strong> ${data.is_potentially_hazardous_asteroid ? "Sì" : "No"}</p>`;
+        const diam = data.estimated_diameter.kilometers;
+        html += `<p><strong>Diametro stimato (km):</strong> ${diam.estimated_diameter_min.toFixed(3)} - ${diam.estimated_diameter_max.toFixed(3)}</p>`;
+        // Mostra dati da orbital_data
+        if (data.orbital_data) {
+          if (data.orbital_data.first_observation_date)
+            html += `<p><strong>Data di scoperta:</strong> ${data.orbital_data.first_observation_date}</p>`;
+          if (data.orbital_data.last_observation_date)
+            html += `<p><strong>Ultima osservazione:</strong> ${data.orbital_data.last_observation_date}</p>`;
+        }
+        // Dati di close approach: calcola ultimo e prossimo passaggio
+        if (data.close_approach_data && data.close_approach_data.length > 0) {
+          let lastPass = null, nextPass = null;
+          const now = Date.now();
+          data.close_approach_data.forEach(approach => {
+            const t = approach.epoch_date_close_approach 
+                      ? approach.epoch_date_close_approach 
+                      : new Date(approach.close_approach_date).getTime();
+            if(t < now) {
+              if(!lastPass || t > lastPass.epoch) {
+                lastPass = { epoch: t, date: approach.close_approach_date };
+              }
+            } else {
+              if(!nextPass || t < nextPass.epoch) {
+                nextPass = { epoch: t, date: approach.close_approach_date };
+              }
+            }
+          });
+          if(lastPass)
+            html += `<p><strong>Ultimo passaggio:</strong> ${lastPass.date}</p>`;
+          if(nextPass)
+            html += `<p><strong>Prossimo passaggio:</strong> ${nextPass.date}</p>`;
+        }
+        if (data.nasa_jpl_url) {
+          html += `<p><a href="${data.nasa_jpl_url}" target="_blank" class="btn btn-sm btn-primary">
+                     Vedi dettagli su JPL</a></p>`;
+        }
+        openDetailModal(data.name, html);
+      } catch (error) {
+        console.error(error);
+        openDetailModal(name, `<p class="text-center text-danger">Errore: ${error.message}</p>`);
+      }
+    }
+
+    /* === Funzione per generare il grafico dei primi 10 NEO === */
+    function generateChart(neoArray) {
+      const labels = [];
+      const velocities = [];
+      neoArray.slice(0, 10).forEach((neo) => {
+        labels.push(neo.name);
+        const approach = (neo.close_approach_data && neo.close_approach_data.length > 0)
+          ? neo.close_approach_data[0] : {};
+        const vel = approach.relative_velocity ? parseFloat(approach.relative_velocity.kilometers_per_second) : 0;
+        velocities.push(vel);
+      });
+      const ctx = document.getElementById("neoChart").getContext("2d");
+      if (neoChart instanceof Chart) {
+        neoChart.destroy();
+      }
+      neoChart = new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels: labels,
+          datasets: [{
+            label: "Velocità (km/s)",
+            data: velocities,
+            backgroundColor: "rgba(54, 162, 235, 0.6)",
+            borderColor: "rgba(54, 162, 235, 1)",
+            borderWidth: 1,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: { beginAtZero: true },
+          },
+        },
+      });
+    }
+
+    /* === Funzione per controllare se ci sono oggetti a rischio === */
+    function checkRisk(neoArray) {
+      let riskyCount = 0;
+      neoArray.forEach((neo) => {
+        const hazardous = neo.is_potentially_hazardous_asteroid;
+        const approach = (neo.close_approach_data && neo.close_approach_data.length > 0)
+          ? neo.close_approach_data[0] : null;
+        if (approach && approach.miss_distance) {
+          const missDist = parseFloat(approach.miss_distance.kilometers);
+          if (hazardous || missDist < 1000000) {
+            riskyCount++;
+          }
+        }
+      });
+      if (riskyCount > 0) {
+        alertContainer.innerHTML = `<div class="alert alert-warning alert-risk" role="alert">
+          Attenzione: Sono stati rilevati ${riskyCount} oggetti a rischio (passaggi ravvicinati o pericolosi).
+          <a href="https://neo.jpl.nasa.gov/" target="_blank" class="alert-link">Maggiori informazioni</a>
+        </div>`;
+      } else {
+        alertContainer.innerHTML = "";
+      }
+    }
+
+    /* === Funzione per aprire la modale dei dettagli === */
+    function openDetailModal(title, contentHTML) {
+      const modalTitle = document.getElementById("detailModalLabel");
+      const modalBody = document.getElementById("modalBodyContent");
+      modalTitle.textContent = title;
+      modalBody.innerHTML = contentHTML;
+      const detailModalElem = document.getElementById("detailModal");
+      const detailModal = new bootstrap.Modal(detailModalElem, { backdrop: "static" });
+      detailModal.show();
+    }
+
+    function escapeHtml(text) {
+      if (typeof text !== "string") return text;
+      const map = {
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;"
+      };
+      return text.replace(/[&<>"']/g, (m) => map[m]);
+    }
+
+    /* === Imposta i Listener per i Pulsanti di Ordinamento === */
+    document.getElementById("btnHazard").addEventListener("click", sortByHazard);
+    document.getElementById("btnDistance").addEventListener("click", sortByDistance);
+    document.getElementById("btnDiscovery").addEventListener("click", sortByDiscovery);
+
+    /* === Gestione della chiusura della modale per evitare blocchi della pagina === */
+    document.getElementById("detailModal").addEventListener("hidden.bs.modal", function () {
+      document.getElementById("modalBodyContent").innerHTML = "";
+      document.body.style.overflow = "auto";
+      document.body.classList.remove("modal-open");
+      const backdrops = document.querySelectorAll(".modal-backdrop");
+      backdrops.forEach(elem => {
+        if (elem.parentNode) {
+          elem.parentNode.removeChild(elem);
+        }
+      });
+    });
+  </script>
+</body>
+</html>

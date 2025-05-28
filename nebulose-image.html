@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Immagini Nebulose - Ricerca & Modal Full Screen</title>
+  <!-- Bootstrap CSS (v4.6) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/css/bootstrap.min.css">
+  <!-- Stili personalizzati -->
+  <style>
+    body {
+      background-color: #f8f9fa;
+      font-family: Arial, sans-serif;
+    }
+    h1 {
+      color: #343a40;
+      margin-bottom: 20px;
+    }
+    /* Menu centrale per le sottocategorie */
+    .nav-menu {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .nav-menu button {
+      margin: 3px;
+    }
+    /* Card per le immagini – dimensione fissa e cursor pointer */
+    .card-img-top {
+      width: 100%;
+      height: 200px;
+      object-fit: cover;
+      cursor: pointer;
+    }
+    /* Modal full screen: effetto che il modal occupi l’intero schermo */
+    .modal-fullscreen .modal-dialog {
+      margin: 0;
+      max-width: 100%;
+      width: 100%;
+      height: 100%;
+      padding: 0;
+    }
+    .modal-fullscreen .modal-content {
+      height: 100vh;
+      border: none;
+      border-radius: 0;
+    }
+    .modal-fullscreen .modal-body {
+      overflow-y: auto;
+      padding: 2rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container mt-4">
+    <h1 class="text-center">Immagini Nebulose</h1>
+    
+    <!-- Menu interattivo per le categorie di nebulose -->
+    <div class="nav-menu">
+      <button class="btn btn-outline-primary" data-query="emission nebula">Emission Nebula</button>
+      <button class="btn btn-outline-primary" data-query="reflection nebula">Reflection Nebula</button>
+      <button class="btn btn-outline-primary" data-query="planetary nebula">Planetary Nebula</button>
+      <button class="btn btn-outline-primary" data-query="dark nebula">Dark Nebula</button>
+      <button class="btn btn-outline-primary" data-query="supernova remnant">Supernova Remnant</button>
+      <button class="btn btn-outline-primary" data-query="nebula">Generale</button>
+    </div>
+    
+    <!-- Filtro per data (facoltativo) -->
+    <div class="row mb-3">
+      <div class="col-md-4 offset-md-4">
+        <input type="date" id="filterDate" class="form-control" placeholder="Seleziona data (facoltativo)">
+      </div>
+    </div>
+    
+    <!-- Sezione in cui verranno visualizzate le card delle immagini -->
+    <div id="imageResults" class="row">
+      <!-- Le card verranno generate dinamicamente -->
+    </div>
+  </div>
+  
+  <!-- Modal Full Screen per mostrare l'immagine ingrandita ed il testo completo -->
+  <div class="modal fade modal-fullscreen" id="fullScreenModal" tabindex="-1" role="dialog" aria-labelledby="fullScreenModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+      <div class="modal-content">
+         <div class="modal-header">
+           <h5 class="modal-title" id="fullScreenModalLabel">Titolo</h5>
+           <button type="button" class="close" data-dismiss="modal" aria-label="Chiudi">
+             <span aria-hidden="true" style="font-size: 2rem;">&times;</span>
+           </button>
+         </div>
+         <div class="modal-body">
+           <img id="fullImage" src="" alt="Immagine Ingrandita" class="img-fluid mb-3">
+           <div id="fullArticle"></div>
+         </div>
+      </div>
+    </div>
+  </div>
+  
+  <footer class="text-center mt-4 p-3 bg-dark text-light">
+    <p class="mb-0">Immagini Nebulose © 2025 - Tutti i diritti riservati</p>
+  </footer>
+  
+  <!-- Inclusione di jQuery (versione completa) e Bootstrap Bundle (include Popper) -->
+  <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/js/bootstrap.bundle.min.js"></script>
+  
+  <!-- Script personalizzato -->
+  <script>
+    // L'API NASA Images è pubblica, ma se necessiti di una API key puoi definirla qui:
+    const NASA_API_KEY = "DEMO_KEY";  // per test lasciamo DEMO_KEY
+    
+    // Funzione di supporto per codificare stringhe in sicurezza
+    function encodeHTML(str) {
+      if (!str) return "";
+      return str.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+    
+    // Funzione per caricare le immagini delle nebulose
+    function loadNebulaImages(query, dateFilter) {
+      const resultsDiv = $('#imageResults');
+      
+      // Visualizza uno spinner mentre i dati sono in caricamento
+      resultsDiv.html(`
+        <div class="col-12 text-center my-3">
+          <div class="spinner-border" role="status">
+            <span class="sr-only">Caricamento...</span>
+          </div>
+        </div>
+      `);
+      
+      // Costruisci l'URL della richiesta
+      let url = "https://images-api.nasa.gov/search?q=" + encodeURIComponent(query) + "&media_type=image";
+      if (dateFilter) {
+        let selectedDate = new Date(dateFilter);
+        let year = selectedDate.getFullYear();
+        url += "&year_start=" + year + "&year_end=" + year;
+      }
+      
+      fetch(url)
+        .then(response => response.json())
+        .then(data => {
+          resultsDiv.empty();
+          if (data.collection && data.collection.items && data.collection.items.length > 0) {
+            let items = data.collection.items;
+            // Ordina i risultati per data_created in ordine decrescente
+            items.sort((a, b) => new Date(b.data[0].date_created || 0) - new Date(a.data[0].date_created || 0));
+            items.forEach(item => {
+              const title = item.data[0].title || "N/D";
+              const fullDescription = item.data[0].description || "";
+              const truncatedDescription = fullDescription.length > 100 ? fullDescription.substring(0, 100) + "..." : fullDescription;
+              const imageUrl = (item.links && item.links[0] && item.links[0].href) ? item.links[0].href : "";
+              const dateCreated = item.data[0].date_created ? new Date(item.data[0].date_created).toLocaleDateString() : "";
+              
+              // Crea la card con l'immagine, titolo, descrizione e pulsante "Leggi di più"
+              let cardHtml = `
+                <div class="col-md-4 col-sm-6 mb-4">
+                  <div class="card h-100">
+                    <img src="${imageUrl}" class="card-img-top" alt="${title}">
+                    <div class="card-body">
+                      <h5 class="card-title">${title}</h5>
+                      <p class="card-text">${truncatedDescription}</p>
+                      <p class="card-text"><small class="text-muted">Data: ${dateCreated}</small></p>
+                    </div>
+                    <div class="card-footer text-center">
+                      <button class="btn btn-primary btn-read-more"
+                        data-fullimage="${imageUrl}"
+                        data-title="${encodeHTML(title)}"
+                        data-description="${encodeHTML(fullDescription)}"
+                        data-date="${dateCreated}">
+                        Leggi di più
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              `;
+              resultsDiv.append(cardHtml);
+            });
+          } else {
+            resultsDiv.html('<div class="col-12 text-center"><p>Nessun risultato trovato.</p></div>');
+          }
+        })
+        .catch(err => {
+          console.error("Errore nella ricerca immagini:", err);
+          resultsDiv.html('<div class="col-12 text-center"><p>Errore nella ricerca immagini.</p></div>');
+        });
+    }
+    
+    $(document).ready(function(){
+      // Carica di default le immagini con query "nebula" per mostrare risultati generali
+      loadNebulaImages("nebula", null);
+      
+      // Listener per i pulsanti del menu – ogni pulsante ha il suo data-query
+      $('.nav-menu button').on('click', function(){
+        const query = $(this).data("query");
+        const dateVal = $('#filterDate').val();
+        loadNebulaImages(query, dateVal);
+      });
+      
+      // Listener sul campo data: se cambia, ricarica la ricerca usando il termine attivo (se non definito, "nebula")
+      $('#filterDate').change(function(){
+        const activeQuery = $('.nav-menu button.btn-primary').data("query") || "nebula";
+        const dateVal = $(this).val();
+        loadNebulaImages(activeQuery, dateVal);
+      });
+      
+      // Listener delegato per i pulsanti "Leggi di più" nelle card
+      $(document).on("click", ".btn-read-more", function(){
+        const fullImage = $(this).data("fullimage");
+        const title = $(this).data("title");
+        const description = $(this).data("description");
+        const dateCreated = $(this).data("date");
+        
+        // Popola il modal con i dati completi
+        $("#fullScreenModalLabel").text(title);
+        $("#fullImage").attr("src", fullImage);
+        $("#fullArticle").html("<p>" + description + "</p><p><small class='text-muted'>Data: " + dateCreated + "</small></p>");
+        $("#fullScreenModal").modal("show");
+      });
+    });
+  </script>
+</body>
+</html>

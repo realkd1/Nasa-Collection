@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <title>NASA Open Data Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Includo Bootstrap 5 per un design moderno e responsive -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <style>
+    /* Temi Day / Night */
+    body.day {
+      background-color: #f8f9fa;
+      color: #212529;
+    }
+    body.night {
+      background-color: #212529;
+      color: #f8f9fa;
+    }
+    /* Header e Footer */
+    header, footer {
+      background-color: #333;
+      color: #fff;
+      padding: 15px;
+      text-align: center;
+    }
+    /* Contenitore principale */
+    .container-main {
+      max-width: 960px;
+      margin: 20px auto;
+      padding: 15px;
+    }
+    /* Nav Tabs */
+    .nav-tabs .nav-link.active {
+      background-color: #ddd;
+      border-color: #ccc;
+      color: #212529;
+    }
+    /* Sezione contenuti */
+    .tab-content > .tab-pane {
+      display: none;
+    }
+    .tab-content > .active {
+      display: block;
+    }
+    /* Card dei risultati */
+    .result-item {
+      margin-bottom: 20px;
+      padding: 15px;
+      background-color: #fff;
+      border: 1px solid #dee2e6;
+      border-radius: 0.25rem;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .result-item h3 {
+      margin-bottom: 10px;
+    }
+    .result-item p {
+      font-size: 0.95rem;
+    }
+    .result-item img {
+      max-width: 100%;
+      height: auto;
+      margin-bottom: 15px;
+      border-radius: 0.25rem;
+      cursor: pointer;
+    }
+    /* Spinner */
+    .spinner {
+      margin: 50px auto;
+      display: block;
+    }
+    /* Messaggio di errore */
+    #errorMessage {
+      color: #d9534f;
+      font-weight: bold;
+      text-align: center;
+      margin-bottom: 15px;
+    }
+    /* Modal con scroll interno se necessario */
+    .modal-body {
+      max-height: 70vh;
+      overflow-y: auto;
+    }
+    /* Footer */
+    footer {
+      margin-top: 40px;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body class="day">
+  <!-- HEADER -->
+  <header>
+    <div class="container">
+      <div class="d-flex justify-content-between align-items-center">
+        <h1 class="m-0">NASA Open Data Dashboard</h1>
+        <div>
+          <label for="themeToggle" class="form-check-label me-2">Tema</label>
+          <input type="checkbox" id="themeToggle" class="form-check-input">
+          <span id="themeText">Day</span>
+        </div>
+      </div>
+      <!-- Nav tabs per le sezioni -->
+      <ul class="nav nav-tabs mt-3" id="dataTabs">
+        <li class="nav-item">
+          <a class="nav-link active" href="#apodSection" data-bs-toggle="tab">APOD</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="#marsSection" data-bs-toggle="tab">Mars Rover</a>
+        </li>
+      </ul>
+    </div>
+  </header>
+  
+  <!-- CONTENITORE PRINCIPALE -->
+  <div class="container-main tab-content">
+    <!-- Sezione APOD: Astronomy Picture of the Day -->
+    <div id="apodSection" class="tab-pane active">
+      <h2 class="mb-3">Astronomy Picture of the Day</h2>
+      <div class="row mb-3">
+        <div class="col-md-4">
+          <input type="date" id="apodDate" class="form-control" max="<?php echo date('Y-m-d'); ?>" value="<?php echo date('Y-m-d'); ?>">
+        </div>
+        <div class="col-md-2">
+          <button id="loadAPOD" class="btn btn-primary w-100">Carica APOD</button>
+        </div>
+      </div>
+      <div id="apodResult"></div>
+    </div>
+    
+    <!-- Sezione Mars Rover Photos -->
+    <div id="marsSection" class="tab-pane">
+      <h2 class="mb-3">Mars Rover Photos</h2>
+      <div class="row mb-3">
+        <div class="col-md-4">
+          <input type="date" id="marsDate" class="form-control" max="<?php echo date('Y-m-d'); ?>" value="<?php echo date('Y-m-d'); ?>">
+        </div>
+        <div class="col-md-3">
+          <select id="roverSelect" class="form-select">
+            <option value="curiosity" selected>Curiosity</option>
+            <option value="opportunity">Opportunity</option>
+            <option value="spirit">Spirit</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <button id="loadMars" class="btn btn-primary w-100">Carica Foto</button>
+        </div>
+      </div>
+      <div id="marsResult" class="row"></div>
+    </div>
+  </div>
+  
+  <!-- FOOTER -->
+  <footer>
+    <p>Realizzato da Bocaletto Luca © <?php echo date("Y"); ?></p>
+  </footer>
+  
+  <!-- MODALE per visualizzare immagini in full screen o dettagli -->
+  <div class="modal fade" id="detailModal" tabindex="-1" aria-labelledby="detailModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="detailModalLabel">Dettaglio</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button>
+        </div>
+        <div class="modal-body" id="modalBodyContent">
+          <!-- Il contenuto verrà caricato qui -->
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Includo Bootstrap Bundle JS (include Popper) -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  
+  <script>
+    // -------------------------------
+    // Gestione del tema Day/Night
+    // -------------------------------
+    const themeToggle = document.getElementById("themeToggle");
+    const themeText = document.getElementById("themeText");
+    themeToggle.addEventListener("change", function() {
+      if(this.checked) {
+        document.body.classList.remove("day");
+        document.body.classList.add("night");
+        themeText.textContent = "Night";
+      } else {
+        document.body.classList.remove("night");
+        document.body.classList.add("day");
+        themeText.textContent = "Day";
+      }
+    });
+    
+    // -------------------------------------------------
+    // Sezioni in Tab (gestiti automaticamente da Bootstrap)
+    // -------------------------------------------------
+    // Nessuna logica aggiuntiva è necessaria poiché i data-bs-toggle="tab"
+    // gestiscono la visualizzazione dei pannelli tramite Bootstrap.
+    
+    // -------------------------------
+    // Funzione: Carica APOD
+    // -------------------------------
+    document.getElementById("loadAPOD").addEventListener("click", function() {
+      const selectedDate = document.getElementById("apodDate").value;
+      loadAPOD(selectedDate);
+    });
+    
+    async function loadAPOD(date) {
+      const apodResult = document.getElementById("apodResult");
+      apodResult.innerHTML = '<div class="text-center"><div class="spinner-border spinner" role="status"><span class="visually-hidden">Caricamento...</span></div></div>';
+      const url = `https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY&date=${date}`;
+      try {
+        const response = await fetch(url);
+        if(!response.ok) throw new Error("Errore nella risposta di rete");
+        const data = await response.json();
+        displayAPOD(data);
+      } catch(error) {
+        console.error(error);
+        apodResult.innerHTML = "";
+        document.getElementById("errorMessage").textContent = "Errore: " + error.message;
+      }
+    }
+    
+    function displayAPOD(data) {
+      let html = `<h3>${escapeHtml(data.title)}</h3>`;
+      if(data.media_type === "image") {
+        html += `<img src="${data.url}" alt="${escapeHtml(data.title)}" class="img-fluid mb-3" style="cursor:pointer;" onclick="openDetailModal('${escapeHtml(data.title)}', '<img src=&quot;${data.url}&quot; alt=&quot;${escapeHtml(data.title)}&quot; class=&quot;img-fluid mb-3&quot;> <p>${escapeHtml(data.explanation)}</p>')">`;
+      } else if(data.media_type === "video") {
+        html += `<div class="ratio ratio-16x9 mb-3">
+                   <iframe src="${data.url}" frameborder="0" allowfullscreen></iframe>
+                 </div>`;
+      }
+      html += `<p>${escapeHtml(data.explanation)}</p>`;
+      document.getElementById("apodResult").innerHTML = html;
+    }
+    
+    // -------------------------------
+    // Funzione: Carica Mars Rover Photos
+    // -------------------------------
+    document.getElementById("loadMars").addEventListener("click", function() {
+      const marsDate = document.getElementById("marsDate").value;
+      const rover = document.getElementById("roverSelect").value;
+      loadMarsPhotos(rover, marsDate);
+    });
+    
+    async function loadMarsPhotos(rover, date) {
+      const marsResult = document.getElementById("marsResult");
+      marsResult.innerHTML = '<div class="text-center"><div class="spinner-border spinner" role="status"><span class="visually-hidden">Caricamento...</span></div></div>';
+      const url = `https://api.nasa.gov/mars-photos/api/v1/rovers/${rover}/photos?earth_date=${date}&api_key=DEMO_KEY`;
+      try {
+        const response = await fetch(url);
+        if(!response.ok) throw new Error("Errore nella risposta di rete");
+        const data = await response.json();
+        displayMarsPhotos(data.photos);
+      } catch(error) {
+        console.error(error);
+        marsResult.innerHTML = "";
+        document.getElementById("errorMessage").textContent = "Errore: " + error.message;
+      }
+    }
+    
+    function displayMarsPhotos(photos) {
+      const marsResult = document.getElementById("marsResult");
+      marsResult.innerHTML = "";
+      if(!photos || photos.length === 0) {
+        marsResult.innerHTML = "<p class='text-center'>Nessuna foto trovata per questa data.</p>";
+        return;
+      }
+      photos.forEach(photo => {
+        const imgUrl = photo.img_src;
+        const camera = photo.camera.full_name;
+        let photoHTML = `<div class="col-md-4 mb-3">
+                           <div class="result-item">
+                             <img src="${imgUrl}" alt="Mars Photo" class="img-fluid" style="cursor:pointer;" onclick="openImageModal('${imgUrl}')">
+                             <p><strong>Camera:</strong> ${escapeHtml(camera)}</p>
+                           </div>
+                         </div>`;
+        marsResult.innerHTML += photoHTML;
+      });
+    }
+    
+    // -------------------------------
+    // Funzione: Apri modale per ingrandire l'immagine di Mars
+    // -------------------------------
+    function openImageModal(imgUrl) {
+      const contentHTML = `<img src="${imgUrl}" alt="Mars Photo" class="img-fluid">`;
+      openDetailModal("Foto in Evidenza", contentHTML);
+    }
+    
+    // -------------------------------
+    // Funzioni di dettaglio (APOD modale o Mars) 
+    // -------------------------------
+    // In questo esempio, la stessa modale openDetailModal viene usata per visualizzare
+    // contenuti in full screen o dettagli aggiuntivi passati come HTML.
+    function openDetailModal(title, contentHTML) {
+      const modalTitle = document.getElementById("detailModalLabel");
+      const modalBody = document.getElementById("modalBodyContent");
+      modalTitle.textContent = title;
+      modalBody.innerHTML = contentHTML;
+      
+      const detailModalElem = document.getElementById("detailModal");
+      const detailModal = new bootstrap.Modal(detailModalElem, {
+        backdrop: 'static'
+      });
+      detailModal.show();
+    }
+    
+    // -------------------------------
+    // Pulizia della modale al momento della chiusura
+    // -------------------------------
+    const detailModalElem = document.getElementById("detailModal");
+    detailModalElem.addEventListener("hidden.bs.modal", function () {
+      document.getElementById("modalBodyContent").innerHTML = "";
+      document.body.classList.remove("modal-open");
+      document.body.style.overflow = "";
+      const backdrops = document.querySelectorAll(".modal-backdrop");
+      backdrops.forEach((elem) => { elem.parentNode.removeChild(elem); });
+      const modalInstance = bootstrap.Modal.getInstance(detailModalElem);
+      if(modalInstance) { modalInstance.dispose(); }
+    });
+    
+    // -------------------------------
+    // Funzione per effettuare l'escape dei caratteri HTML (XSS prevention)
+    // -------------------------------
+    function escapeHtml(text) {
+      if (typeof text !== "string") return text;
+      const map = {
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        "\"": "&quot;",
+        "'": "&#039;"
+      };
+      return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+    }
+    
+  </script>
+</body>
+</html>
